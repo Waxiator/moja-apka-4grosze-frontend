@@ -1,5 +1,5 @@
 // Upewnij się, że ten URL wskazuje na Twój backend.
-const BASE_URL = 'https://moja-apka-4grosze-frontend.vercel.app/'; // Zmień na swój URL z Render.com!
+const BASE_URL = 'https://moja-apka-4grosze-backend.onrender.com'; // Zmień na swój URL z Render.com!
 
 
 // Elementy DOM
