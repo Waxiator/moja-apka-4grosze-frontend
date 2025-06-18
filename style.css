@@ -1,0 +1,179 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Zmienione na flex-start, aby nie było na środku pionowo */
+    min-height: 100vh;
+    margin: 20px 0; /* Dodajemy marginesy pionowe */
+    color: #333;
+}
+
+.container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+}
+
+h1, h2 {
+    color: #007bff;
+    margin-bottom: 20px;
+}
+
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+p {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+#auth-message, #send-message-status {
+    color: red;
+    font-weight: bold;
+}
+
+/* Tabs styling */
+.tabs {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #eee;
+}
+
+.tabs button {
+    flex-grow: 1;
+    padding: 12px 15px;
+    background-color: #f8f9fa;
+    color: #007bff;
+    border: none;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.tabs button.active {
+    background-color: #e9ecef;
+    border-bottom: 2px solid #007bff;
+    color: #0056b3;
+}
+
+.tabs button:hover:not(.active) {
+    background-color: #e2e6ea;
+}
+
+/* Panels styling */
+.panel {
+    display: none;
+    text-align: left; /* Wyrównanie tekstu w panelach do lewej */
+}
+
+.panel.active-panel {
+    display: block;
+}
+
+#messages-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: #fcfcfc;
+}
+
+#messages-list li {
+    background-color: #e9f7ff;
+    border: 1px solid #cceeff;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    word-wrap: break-word; /* Zapobiega wychodzeniu długich słów poza kontener */
+}
+
+#messages-list li strong {
+    color: #0056b3;
+}
+
+#messages-list li span.timestamp {
+    font-size: 0.8em;
+    color: #666;
+    display: block;
+    margin-top: 5px;
+}
+
+/* Styl dla paska przewijania (dla lepszego wyglądu) */
+#messages-list::-webkit-scrollbar {
+    width: 8px;
+}
+#messages-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+#messages-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+#messages-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+#refresh-messages {
+    margin-top: 15px;
+    background-color: #28a745; /* Zielony dla odświeżania */
+}
+
+#refresh-messages:hover {
+    background-color: #218838;
+}
+
+#logout-btn {
+    background-color: #dc3545; /* Czerwony dla wylogowania */
+    margin-top: 20px;
+}
+
+#logout-btn:hover {
+    background-color: #c82333;
+}

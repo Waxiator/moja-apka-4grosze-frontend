@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4 Grosze</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Twoje 4 Grosze</h1>
+
+        <div id="auth-section">
+            <h2>Zaloguj / Zarejestruj się</h2>
+            <input type="text" id="auth-username" placeholder="Nazwa użytkownika">
+            <input type="password" id="auth-password" placeholder="Hasło">
+            <button id="login-btn">Zaloguj</button>
+            <button id="register-btn">Zarejestruj</button>
+            <p id="auth-message"></p>
+        </div>
+
+        <div id="app-section" style="display: none;">
+            <p>Witaj, <span id="current-user-display"></span>!</p>
+            <div class="tabs">
+                <button id="received-tab" class="active">Odebrane</button>
+                <button id="send-tab">Dodaj swoje 4 grosze</button>
+            </div>
+
+            <div id="received-panel" class="panel active-panel">
+                <h2>Odebrane Wiadomości</h2>
+                <ul id="messages-list">
+                    </ul>
+                <button id="refresh-messages">Odśwież wiadomości</button>
+            </div>
+
+            <div id="send-panel" class="panel">
+                <h2>Wyślij Wiadomość</h2>
+                <select id="receiver-select">
+                    <option value="">Wybierz odbiorcę</option>
+                </select>
+                <textarea id="message-content" placeholder="Napisz swoją wiadomość..."></textarea>
+                <button id="send-message-btn">Wyślij</button>
+                <p id="send-message-status"></p>
+            </div>
+
+            <button id="logout-btn">Wyloguj</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
