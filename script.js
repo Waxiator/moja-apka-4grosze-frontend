@@ -1,10 +1,11 @@
 // Upewnij się, że ten URL wskazuje na Twój backend.
 // Podczas developmentu lokalnego:
 const BASE_URL = 'http://localhost:3000';
-// Gdy hostujesz w chmurze, zmień na URL Twojego serwera backendowego (np. https://twoj-backend.render.com)
+// Gdy hostujesz w chmurze, zmień na URL Twojego serwera backendowego (np. https://twoj-backend.onrender.com)
 
 
 // Elementy DOM
+const container = document.querySelector('.container');
 const authSection = document.getElementById('auth-section');
 const appSection = document.getElementById('app-section');
 const authUsernameInput = document.getElementById('auth-username');
@@ -27,15 +28,18 @@ const logoutBtn = document.getElementById('logout-btn');
 
 let currentUserId = null;
 let currentUsername = null;
+let lastMessageTimestamp = 0; // Będzie przechowywać timestamp ostatniej wiadomości
+let fetchMessagesInterval = null; // Do przechowywania interwału odświeżania
 
 // ----- Funkcje pomocnicze -----
 
 function showPanel(panelId) {
     const panels = document.querySelectorAll('.panel');
-    panels.forEach(panel => panel.classList.remove('active-panel'));
+    panels.forEach(panel => {
+        panel.classList.remove('active-panel');
+    });
     document.getElementById(panelId).classList.add('active-panel');
 
-    // Aktualizuj aktywne zakładki
     const tabs = document.querySelectorAll('.tabs button');
     tabs.forEach(tab => tab.classList.remove('active'));
     if (panelId === 'received-panel') {
@@ -46,33 +50,46 @@ function showPanel(panelId) {
 }
 
 function showAuthSection() {
-    authSection.style.display = 'block';
-    appSection.style.display = 'none';
-    authMessage.textContent = '';
-    authUsernameInput.value = '';
-    authPasswordInput.value = '';
-    localStorage.removeItem('userId');
-    localStorage.removeItem('username');
-    currentUserId = null;
-    currentUsername = null;
+    container.classList.add('hidden'); // Add hidden class for exit animation
+    setTimeout(() => {
+        authSection.style.display = 'block';
+        appSection.style.display = 'none';
+        authMessage.textContent = '';
+        authUsernameInput.value = '';
+        authPasswordInput.value = '';
+        localStorage.removeItem('userId');
+        localStorage.removeItem('username');
+        currentUserId = null;
+        currentUsername = null;
+        if (fetchMessagesInterval) {
+            clearInterval(fetchMessagesInterval); // Zatrzymaj odświeżanie wiadomości
+            fetchMessagesInterval = null;
+        }
+        container.classList.remove('hidden'); // Remove hidden class for entry animation
+    }, 500); // Wait for exit animation to complete
 }
 
 function showAppSection(userId, username) {
-    authSection.style.display = 'none';
-    appSection.style.display = 'block';
-    currentUserDisplay.textContent = username;
-    currentUserId = userId;
-    currentUsername = username;
-    localStorage.setItem('userId', userId);
-    localStorage.setItem('username', username);
-    showPanel('received-panel'); // Domyślnie pokazujemy panel odebranych
-    fetchMessages(); // Od razu pobierz wiadomości
-    fetchAllUsers(); // Pobierz użytkowników do listy rozwijanej
+    container.classList.add('hidden'); // Add hidden class for exit animation
+    setTimeout(() => {
+        authSection.style.display = 'none';
+        appSection.style.display = 'block';
+        currentUserDisplay.textContent = username;
+        currentUserId = userId;
+        currentUsername = username;
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('username', username);
+        showPanel('received-panel'); // Domyślnie pokazujemy panel odebranych
+        fetchMessages(true); // Od razu pobierz wiadomości i ustaw interwał
+        fetchAllUsers(); // Pobierz użytkowników do listy rozwijanej
+        container.classList.remove('hidden'); // Remove hidden class for entry animation
+    }, 500); // Wait for exit animation to complete
 }
 
 function displayMessage(element, message, isError = false) {
     element.textContent = message;
-    element.style.color = isError ? 'red' : 'green';
+    element.className = isError ? 'error' : 'success'; // Ustaw klasę dla CSS
+    setTimeout(() => { element.textContent = ''; element.className = ''; }, 3000); // Wiadomość znika po 3s
 }
 
 function formatDate(dateString) {
@@ -81,6 +98,28 @@ function formatDate(dateString) {
         hour: '2-digit', minute: '2-digit', second: '2-digit'
     };
     return new Date(dateString).toLocaleDateString('pl-PL', options);
+}
+
+// ----- Powiadomienia przeglądarki -----
+
+function requestNotificationPermission() {
+    if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                console.log('Zezwolono na powiadomienia.');
+            } else if (permission === 'denied') {
+                console.warn('Odmówiono zgody na powiadomienia.');
+            }
+        });
+    } else {
+        console.warn('Twoja przeglądarka nie obsługuje powiadomień.');
+    }
+}
+
+function sendBrowserNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body: body, icon: 'icon.png' }); // Dodaj ścieżkę do ikony, jeśli masz
+    }
 }
 
 // ----- Obsługa Autoryzacji -----
@@ -93,6 +132,7 @@ loginBtn.addEventListener('click', async () => {
         return;
     }
 
+    loginBtn.disabled = true; // Disable button to prevent multiple clicks
     try {
         const response = await fetch(`${BASE_URL}/login`, {
             method: 'POST',
@@ -103,12 +143,15 @@ loginBtn.addEventListener('click', async () => {
         if (response.ok) {
             displayMessage(authMessage, data.message);
             showAppSection(data.userId, data.username);
+            requestNotificationPermission(); // Poproś o zgodę po zalogowaniu
         } else {
             displayMessage(authMessage, data.message, true);
         }
     } catch (error) {
         displayMessage(authMessage, 'Błąd połączenia z serwerem.', true);
         console.error('Login error:', error);
+    } finally {
+        loginBtn.disabled = false;
     }
 });
 
@@ -120,6 +163,7 @@ registerBtn.addEventListener('click', async () => {
         return;
     }
 
+    registerBtn.disabled = true; // Disable button
     try {
         const response = await fetch(`${BASE_URL}/register`, {
             method: 'POST',
@@ -129,14 +173,15 @@ registerBtn.addEventListener('click', async () => {
         const data = await response.json();
         if (response.ok) {
             displayMessage(authMessage, data.message);
-            // Po rejestracji automatycznie zaloguj
-            setTimeout(() => loginBtn.click(), 1000);
+            setTimeout(() => loginBtn.click(), 1500); // Automatycznie zaloguj po chwili
         } else {
             displayMessage(authMessage, data.message, true);
         }
     } catch (error) {
         displayMessage(authMessage, 'Błąd połączenia z serwerem.', true);
         console.error('Register error:', error);
+    } finally {
+        registerBtn.disabled = false;
     }
 });
 
@@ -144,30 +189,69 @@ logoutBtn.addEventListener('click', () => {
     showAuthSection();
 });
 
-// ----- Obsługa wiadomości -----
+// ----- Obsługa wiadomości i Polling -----
 
-async function fetchMessages() {
+async function fetchMessages(initialLoad = false) {
     if (!currentUserId) return;
-    messagesList.innerHTML = '<li>Ładowanie wiadomości...</li>';
+
+    if (initialLoad) { // Tylko przy pierwszym ładowaniu
+        messagesList.innerHTML = '<li>Ładowanie wiadomości... <span class="loading-spinner"></span></li>';
+        lastMessageTimestamp = 0; // Resetuj timestamp przy pierwszym ładowaniu
+    }
+
     try {
-        const response = await fetch(`${BASE_URL}/messages/${currentUserId}`);
+        const response = await fetch(`${BASE_URL}/messages/${currentUserId}?since=${lastMessageTimestamp}`);
         const messages = await response.json();
 
-        messagesList.innerHTML = ''; // Wyczyść listę
+        if (initialLoad) {
+            messagesList.innerHTML = ''; // Wyczyść listę tylko przy pierwszym ładowaniu
+        }
 
-        if (messages.length === 0) {
+        if (messages.length === 0 && initialLoad) {
             messagesList.innerHTML = '<li>Brak odebranych wiadomości.</li>';
+        } else if (messages.length === 0 && !initialLoad) {
+            // Brak nowych wiadomości, nic nie rób
             return;
         }
 
+        let newMessagesReceived = false;
         messages.forEach(msg => {
-            const li = document.createElement('li');
-            li.innerHTML = `<strong>Od: ${msg.sender.username}</strong><br>${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
-            messagesList.appendChild(li);
+            const msgTimestamp = new Date(msg.timestamp).getTime();
+            if (msgTimestamp > lastMessageTimestamp) { // Sprawdź, czy to nowa wiadomość
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>Od: ${msg.sender.username}</strong><br>${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
+                messagesList.prepend(li); // Dodaj na początek listy (najnowsze na górze)
+                newMessagesReceived = true;
+            }
+            if (msgTimestamp > lastMessageTimestamp) {
+                lastMessageTimestamp = msgTimestamp; // Zaktualizuj timestamp
+            }
         });
+
+        if (newMessagesReceived && !initialLoad) {
+            sendBrowserNotification('Nowa wiadomość!', 'Masz nową wiadomość w aplikacji 4 Grosze.');
+            // Opcjonalnie: odtwórz krótki dźwięk
+            // const audio = new Audio('notification.mp3'); // Musisz mieć plik audio
+            // audio.play();
+        }
+
+        // Usuń stare "ładowanie wiadomości" jeśli były
+        const loadingLi = messagesList.querySelector('li .loading-spinner');
+        if (loadingLi && messagesList.childElementCount > 1) { // Sprawdź, czy są inne wiadomości
+             loadingLi.parentElement.remove();
+        }
+
+
     } catch (error) {
-        messagesList.innerHTML = '<li>Błąd ładowania wiadomości. Spróbuj odświeżyć.</li>';
+        if (initialLoad) {
+            messagesList.innerHTML = '<li>Błąd ładowania wiadomości. Spróbuj odświeżyć.</li>';
+        }
         console.error('Error fetching messages:', error);
+    }
+
+    // Uruchom interwał odświeżania po pierwszym załadowaniu
+    if (initialLoad && !fetchMessagesInterval) {
+        fetchMessagesInterval = setInterval(() => fetchMessages(false), 5000); // Odświeżaj co 5 sekund
     }
 }
 
@@ -178,17 +262,15 @@ async function fetchAllUsers() {
         const users = await response.json();
 
         users.forEach(user => {
-            // Nie dodawaj siebie do listy odbiorców
-            if (user.username !== currentUsername) {
+            if (user.username !== currentUsername) { // Nie dodawaj siebie do listy odbiorców
                 const option = document.createElement('option');
-                option.value = user.username; // Wysyłamy username do backendu
+                option.value = user.username;
                 option.textContent = user.username;
                 receiverSelect.appendChild(option);
             }
         });
     } catch (error) {
         console.error('Error fetching users:', error);
-        // Możesz dodać wiadomość dla użytkownika, jeśli lista się nie załadowała
     }
 }
 
@@ -205,7 +287,7 @@ sendMessageBtn.addEventListener('click', async () => {
         return;
     }
 
-    sendMessageBtn.disabled = true; // Zablokuj przycisk, aby uniknąć podwójnego wysłania
+    sendMessageBtn.disabled = true;
     try {
         const response = await fetch(`${BASE_URL}/send-message`, {
             method: 'POST',
@@ -219,8 +301,8 @@ sendMessageBtn.addEventListener('click', async () => {
         const data = await response.json();
         if (response.ok) {
             displayMessage(sendMessageStatus, data.message);
-            messageContentInput.value = ''; // Wyczyść pole wiadomości
-            // Opcjonalnie: odśwież odebrane wiadomości po wysłaniu, jeśli chcesz zobaczyć je w 'wysłanych' (ale w tej apce tylko odebrane)
+            messageContentInput.value = '';
+            // Opcjonalnie: fetchMessages() aby odświeżyć 'odebrane' jeśli coś wysłaliśmy (choć to wysłane)
         } else {
             displayMessage(sendMessageStatus, data.message, true);
         }
@@ -228,7 +310,7 @@ sendMessageBtn.addEventListener('click', async () => {
         displayMessage(sendMessageStatus, 'Błąd wysyłania wiadomości. Spróbuj ponownie.', true);
         console.error('Send message error:', error);
     } finally {
-        sendMessageBtn.disabled = false; // Odblokuj przycisk
+        sendMessageBtn.disabled = false;
     }
 });
 
@@ -237,19 +319,23 @@ sendMessageBtn.addEventListener('click', async () => {
 
 receivedTab.addEventListener('click', () => {
     showPanel('received-panel');
-    fetchMessages(); // Odśwież wiadomości przy przełączeniu na panel
+    fetchMessages(true); // Wymuś pełne odświeżenie i reset timestampa
 });
 
 sendTab.addEventListener('click', () => {
     showPanel('send-panel');
-    fetchAllUsers(); // Odśwież listę użytkowników przy przełączeniu na panel
+    fetchAllUsers();
 });
 
-refreshMessagesBtn.addEventListener('click', fetchMessages);
+refreshMessagesBtn.addEventListener('click', () => fetchMessages(true));
 
 
 // ----- Inicjalizacja Aplikacji -----
-// Sprawdź, czy użytkownik jest już zalogowany (dzięki localStorage)
+// Animacja wejścia kontenera
+document.addEventListener('DOMContentLoaded', () => {
+    container.classList.remove('hidden');
+});
+
 const storedUserId = localStorage.getItem('userId');
 const storedUsername = localStorage.getItem('username');
 
