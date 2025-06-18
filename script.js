@@ -1,6 +1,6 @@
 // Upewnij się, że ten URL wskazuje na Twój backend.
 // Podczas developmentu lokalnego:
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://moja-apka-4grosze-backend.onrender.com';
 // Gdy hostujesz w chmurze, zmień na URL Twojego serwera backendowego (np. https://twoj-backend.onrender.com)
 
 
