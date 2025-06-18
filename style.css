@@ -193,6 +193,7 @@ p {
 }
 
 /* Messages List */
+/* Messages List */
 #messages-list {
     list-style: none;
     padding: 0;
@@ -204,58 +205,71 @@ p {
     background-color: #2c3e50; /* Ciemniejsze tło listy */
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     padding: 15px;
+    display: flex; /* NOWOŚĆ: Użyj flexbox dla przewijania od dołu */
+    flex-direction: column-reverse; /* NOWOŚĆ: Układaj wiadomości od dołu */
 }
 
-#messages-list li {
-    background-color: #3e5162; /* Tło pojedynczej wiadomości */
-    border: 1px solid #4a6572;
+/* NOWOŚĆ: Styl dla pojedynczego dymka wiadomości */
+.message-bubble {
     padding: 15px;
     margin-bottom: 12px;
-    border-radius: 12px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    border-radius: 18px; /* Bardziej zaokrąglone dla dymków */
     word-wrap: break-word;
+    max-width: 85%; /* Ogranicz szerokość dymku */
+    position: relative;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex; /* NOWOŚĆ: Użyj flexbox wewnątrz dymku */
+    flex-direction: column;
 }
 
-#messages-list li:last-child {
+.message-bubble:last-child {
     margin-bottom: 0;
 }
 
-#messages-list li:hover {
+.message-bubble:hover {
     transform: translateY(-3px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.25);
 }
 
-#messages-list li strong {
-    color: #74b9ff; /* Jasnoniebieski dla nadawcy */
-    display: block;
+/* NOWOŚĆ: Styl dla wiadomości wysłanych (przez bieżącego użytkownika) */
+.message-bubble.sent {
+    background-color: #007bff; /* Kolor niebieski dla wysłanych */
+    color: white;
+    margin-left: auto; /* Wyrównaj do prawej */
+    border-bottom-right-radius: 4px; /* Małe załamanie na rogu "ogonka" */
+}
+
+.message-bubble.sent strong {
+    color: #e0e6eb; /* Jasny tekst nadawcy w dymku wysłanym */
+    display: none; /* Ukryj nadawcę w swoich wiadomościach */
+}
+
+/* NOWOŚĆ: Styl dla wiadomości odebranych (od innych użytkowników) */
+.message-bubble.received {
+    background-color: #3e5162; /* Ciemniejszy szary dla odebranych */
+    color: #e0e6eb;
+    margin-right: auto; /* Wyrównaj do lewej */
+    border-bottom-left-radius: 4px; /* Małe załamanie na rogu "ogonka" */
+}
+
+.message-bubble.received strong {
+    color: #74b9ff; /* Jasnoniebieski dla nadawcy w dymku odebranym */
+    display: block; /* Pokaż nadawcę */
     margin-bottom: 8px;
-    font-size: 1.2em;
+    font-size: 1.1em;
 }
 
-#messages-list li span.timestamp {
-    font-size: 0.9em;
-    color: #a4b0be;
-    display: block;
+.message-bubble .timestamp {
+    font-size: 0.85em;
+    color: rgba(224, 230, 235, 0.7); /* Lżejszy kolor dla timestampa */
     margin-top: 10px;
     text-align: right;
+    display: block;
 }
 
-/* Scrollbar Styling (for modern look) */
-#messages-list::-webkit-scrollbar {
-    width: 10px;
-}
-#messages-list::-webkit-scrollbar-track {
-    background: #2c3e50;
-    border-radius: 10px;
-}
-#messages-list::-webkit-scrollbar-thumb {
-    background: #556c7f;
-    border-radius: 10px;
-}
-#messages-list::-webkit-scrollbar-thumb:hover {
-    background: #6a8298;
-}
+/* Pozostałe style z poprzedniej wersji (scrollbar, buttons, spinner, media queries) */
+/* ... (pozostaw resztę style.css bez zmian) ... */
 
 /* Specific Buttons */
 #refresh-messages {

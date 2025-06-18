@@ -102,11 +102,31 @@ function displayStatusMessage(element, message, isError = false) {
 }
 
 function formatDate(dateString) {
-    const options = {
-        year: 'numeric', month: 'long', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
-    };
-    return new Date(dateString).toLocaleDateString('pl-PL', options);
+    const messageDate = new Date(dateString);
+    const now = new Date();
+
+    const diffSeconds = Math.floor((now.getTime() - messageDate.getTime()) / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSeconds < 60) {
+        return "teraz";
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes} min temu`;
+    } else if (diffHours < 24) {
+        return `${diffHours} godz. temu`;
+    } else if (diffDays === 1) {
+        return `Wczoraj o ${messageDate.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (diffDays < 7) {
+        // Nazwa dnia tygodnia
+        const dayOfWeek = messageDate.toLocaleDateString('pl-PL', { weekday: 'long' });
+        return `${dayOfWeek} o ${messageDate.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        // Pełna data dla starszych wiadomości
+        const options = { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        return messageDate.toLocaleDateString('pl-PL', options);
+    }
 }
 
 // ----- Powiadomienia push (bez zmian, ale teraz wymagają tokena do subskrypcji) -----
@@ -282,11 +302,9 @@ async function fetchMessages() {
     messagesList.innerHTML = '<li>Ładowanie wiadomości... <span class="loading-spinner"></span></li>';
 
     try {
-        // ZMIANA: Używamy nagłówka autoryzacji
         const response = await fetch(`${BASE_URL}/messages/${currentUserId}`, {
             headers: getAuthHeaders()
         });
-        // ZMIANA: Obsługa błędu 401/403 - przekierowanie do logowania
         if (response.status === 401 || response.status === 403) {
             displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
             showAuthSection();
@@ -295,21 +313,38 @@ async function fetchMessages() {
 
         const messages = await response.json();
 
-        messagesList.innerHTML = '';
+        messagesList.innerHTML = ''; // Wyczyść listę przed dodaniem
 
         if (messages.length === 0) {
-            messagesList.innerHTML = '<li>Brak odebranych wiadomości.</li>';
+            messagesList.innerHTML = '<li class="empty-list-message">Brak odebranych wiadomości.</li>'; // NOWOŚĆ: Komunikat o pustej liście
             return;
         }
 
         messages.forEach(msg => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>Od: ${msg.sender.username}</strong><br>${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
-            messagesList.prepend(li);
+            li.classList.add('message-bubble'); // Dodaj podstawową klasę dymka
+
+            // Sprawdź, czy wiadomość została wysłana przez bieżącego użytkownika
+            const isSentByCurrentUser = String(msg.sender._id) === String(currentUserId);
+
+            if (isSentByCurrentUser) {
+                li.classList.add('sent');
+                // Jeśli to moja wiadomość, nie wyświetlaj "Od: Ja", tylko samą treść
+                li.innerHTML = `${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
+            } else {
+                li.classList.add('received');
+                // Jeśli to wiadomość od kogoś innego, wyświetl nadawcę
+                li.innerHTML = `<strong>${msg.sender.username}</strong><br>${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
+            }
+
+            messagesList.appendChild(li); // Dodaj na koniec listy (domyślny przepływ)
         });
 
+        // NOWOŚĆ: Przewiń listę wiadomości do samego dołu po załadowaniu
+        messagesList.scrollTop = messagesList.scrollHeight;
+
     } catch (error) {
-        messagesList.innerHTML = '<li>Błąd ładowania wiadomości. Spróbuj odświeżyć.</li>';
+        messagesList.innerHTML = '<li class="error-message">Błąd ładowania wiadomości. Spróbuj odświeżyć.</li>'; // NOWOŚĆ: Komunikat o błędzie
         console.error('Error fetching messages:', error);
     }
 }
