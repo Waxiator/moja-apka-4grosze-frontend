@@ -1,5 +1,5 @@
 // Upewnij się, że ten URL wskazuje na Twój backend.
-const BASE_URL = 'https://moja-apka-4grosze-backend.onrender.com'; // Zmień na swój URL z Render.com!
+const BASE_URL = 'https://moja-apka-4grosze-backend.onrender.com'; // ZMIANA: Potwierdź swój URL z Render.com!
 
 
 // Elementy DOM
@@ -26,7 +26,21 @@ const logoutBtn = document.getElementById('logout-btn');
 
 let currentUserId = null;
 let currentUsername = null;
-let publicVapidKey = null; // Do przechowywania klucza publicznego VAPID
+let publicVapidKey = null;
+
+// NOWOŚĆ: Funkcja do pobierania tokenu JWT
+function getToken() {
+    return localStorage.getItem('jwtToken');
+}
+
+// NOWOŚĆ: Funkcja do dodawania tokenu do nagłówków
+function getAuthHeaders() {
+    const token = getToken();
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` // Dodajemy nagłówek autoryzacji
+    };
+}
 
 // ----- Funkcje pomocnicze -----
 
@@ -56,6 +70,7 @@ function showAuthSection() {
         authPasswordInput.value = '';
         localStorage.removeItem('userId');
         localStorage.removeItem('username');
+        localStorage.removeItem('jwtToken'); // ZMIANA: Usuwamy też token
         currentUserId = null;
         currentUsername = null;
         container.classList.remove('hidden');
@@ -73,11 +88,10 @@ function showAppSection(userId, username) {
         localStorage.setItem('userId', userId);
         localStorage.setItem('username', username);
         showPanel('received-panel');
-        fetchMessages(); // Od razu pobierz wiadomości
-        fetchAllUsers(); // Pobierz użytkowników do listy rozwijanej
+        fetchMessages();
+        fetchAllUsers();
+        subscribeUserToPush(); // Upewnij się, że subskrybujemy powiadomienia po zalogowaniu
         container.classList.remove('hidden');
-        // NOWOŚĆ: Po zalogowaniu, spróbuj zarejestrować subskrypcję push
-        subscribeUserToPush();
     }, 600);
 }
 
@@ -95,7 +109,104 @@ function formatDate(dateString) {
     return new Date(dateString).toLocaleDateString('pl-PL', options);
 }
 
-// ----- Obsługa Autoryzacji -----
+// ----- Powiadomienia push (bez zmian, ale teraz wymagają tokena do subskrypcji) -----
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function getVapidPublicKey() {
+    try {
+        const response = await fetch(`${BASE_URL}/vapidPublicKey`);
+        const data = await response.json();
+        publicVapidKey = data.publicKey;
+        console.log('Publiczny klucz VAPID pobrany:', publicVapidKey);
+    } catch (error) {
+        console.error('Błąd pobierania publicznego klucza VAPID:', error);
+    }
+}
+
+async function subscribeUserToPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Powiadomienia push nie są obsługiwane w tej przeglądarce/urządzeniu.');
+        return;
+    }
+    if (!publicVapidKey) {
+        console.warn('Brak publicznego klucza VAPID. Nie można zasubskrybować.');
+        return;
+    }
+    if (!currentUserId) {
+        console.warn('Brak ID użytkownika. Nie można zasubskrybować.');
+        return;
+    }
+
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        const existingSubscription = await registration.pushManager.getSubscription();
+
+        if (existingSubscription) {
+            console.log('Istniejąca subskrypcja push:', existingSubscription);
+            await sendSubscriptionToBackend(existingSubscription);
+            return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.warn('Odmowa zgody na powiadomienia push.');
+            return;
+        }
+
+        const subscribeOptions = {
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+        };
+
+        const pushSubscription = await registration.pushManager.subscribe(subscribeOptions);
+        console.log('Nowa subskrypcja push:', pushSubscription);
+
+        await sendSubscriptionToBackend(pushSubscription);
+        console.log('Subskrypcja push wysłana do backendu.');
+
+    } catch (error) {
+        console.error('Błąd subskrypcji push:', error);
+    }
+}
+
+async function sendSubscriptionToBackend(subscription) {
+    if (!currentUserId) {
+        console.warn('Brak ID użytkownika, nie można wysłać subskrypcji do backendu.');
+        return;
+    }
+    try {
+        const response = await fetch(`${BASE_URL}/subscribe-push`, {
+            method: 'POST',
+            headers: getAuthHeaders(), // ZMIANA: Używamy nagłówka autoryzacji
+            body: JSON.stringify({ subscription: subscription, userId: currentUserId })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Błąd wysyłania subskrypcji do backendu:', errorData.message);
+        } else {
+            console.log('Subskrypcja push pomyślnie zapisana w backendzie.');
+        }
+    } catch (error) {
+        console.error('Błąd sieciowy podczas wysyłania subskrypcji do backendu:', error);
+    }
+}
+
+
+// ----- Obsługa Autoryzacji (ZMIANA: Zapis i użycie tokenu) -----
 
 loginBtn.addEventListener('click', async () => {
     const username = authUsernameInput.value.trim();
@@ -114,6 +225,8 @@ loginBtn.addEventListener('click', async () => {
         });
         const data = await response.json();
         if (response.ok) {
+            // ZMIANA: Zapisujemy token JWT
+            localStorage.setItem('jwtToken', data.token);
             displayStatusMessage(authMessage, data.message);
             showAppSection(data.userId, data.username);
         } else {
@@ -161,16 +274,25 @@ logoutBtn.addEventListener('click', () => {
     showAuthSection();
 });
 
-// ----- Obsługa wiadomości (Polling usunięty, bo będą push notifications) -----
+// ----- Obsługa wiadomości (ZMIANA: Użycie tokenu w żądaniach) -----
 
-async function fetchMessages() { // Usunięto argumenty initialLoad i showNotification
+async function fetchMessages() {
     if (!currentUserId) return;
 
     messagesList.innerHTML = '<li>Ładowanie wiadomości... <span class="loading-spinner"></span></li>';
 
     try {
-        // Zawsze pobieramy wszystkie wiadomości, bo nowe przyjdą jako push notifications
-        const response = await fetch(`${BASE_URL}/messages/${currentUserId}`);
+        // ZMIANA: Używamy nagłówka autoryzacji
+        const response = await fetch(`${BASE_URL}/messages/${currentUserId}`, {
+            headers: getAuthHeaders()
+        });
+        // ZMIANA: Obsługa błędu 401/403 - przekierowanie do logowania
+        if (response.status === 401 || response.status === 403) {
+            displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
+            showAuthSection();
+            return;
+        }
+
         const messages = await response.json();
 
         messagesList.innerHTML = '';
@@ -183,7 +305,7 @@ async function fetchMessages() { // Usunięto argumenty initialLoad i showNotifi
         messages.forEach(msg => {
             const li = document.createElement('li');
             li.innerHTML = `<strong>Od: ${msg.sender.username}</strong><br>${msg.content}<span class="timestamp">${formatDate(msg.timestamp)}</span>`;
-            messagesList.prepend(li); // Dodaj na początek listy (najnowsze na górze)
+            messagesList.prepend(li);
         });
 
     } catch (error) {
@@ -195,7 +317,17 @@ async function fetchMessages() { // Usunięto argumenty initialLoad i showNotifi
 async function fetchAllUsers() {
     receiverSelect.innerHTML = '<option value="">Wybierz odbiorcę</option>';
     try {
-        const response = await fetch(`${BASE_URL}/users`);
+        // ZMIANA: Używamy nagłówka autoryzacji
+        const response = await fetch(`${BASE_URL}/users`, {
+            headers: getAuthHeaders()
+        });
+        // ZMIANA: Obsługa błędu 401/403
+        if (response.status === 401 || response.status === 403) {
+            displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
+            showAuthSection();
+            return;
+        }
+
         const users = await response.json();
 
         users.forEach(user => {
@@ -226,20 +358,27 @@ sendMessageBtn.addEventListener('click', async () => {
 
     sendMessageBtn.disabled = true;
     try {
+        // ZMIANA: Używamy nagłówka autoryzacji
         const response = await fetch(`${BASE_URL}/send-message`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-                senderId: currentUserId,
+                // ZMIANA: senderId nie jest już wysyłany z frontendu, bo jest pobierany z tokenu
                 receiverUsername: receiverUsername,
                 content: content
             })
         });
+        // ZMIANA: Obsługa błędu 401/403
+        if (response.status === 401 || response.status === 403) {
+            displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
+            showAuthSection();
+            return;
+        }
+
         const data = await response.json();
         if (response.ok) {
             displayStatusMessage(sendMessageStatus, data.message);
             messageContentInput.value = '';
-            // Po wysłaniu wiadomości, odbiorca powinien otrzymać powiadomienie push
         } else {
             displayStatusMessage(sendMessageStatus, data.message, true);
         }
@@ -256,7 +395,7 @@ sendMessageBtn.addEventListener('click', async () => {
 
 receivedTab.addEventListener('click', () => {
     showPanel('received-panel');
-    fetchMessages(); // Odśwież wiadomości po wejściu w zakładkę
+    fetchMessages();
 });
 
 sendTab.addEventListener('click', () => {
@@ -267,111 +406,11 @@ sendTab.addEventListener('click', () => {
 refreshMessagesBtn.addEventListener('click', fetchMessages);
 
 
-// ----- Funkcje do obsługi powiadomień push (NOWOŚĆ) -----
-
-// Konwertuje ciąg znaków Base64 URL na Uint8Array (potrzebne dla subskrypcji)
-function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding)
-        .replace(/\-/g, '+')
-        .replace(/_/g, '/');
-
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-}
-
-async function getVapidPublicKey() {
-    try {
-        const response = await fetch(`${BASE_URL}/vapidPublicKey`);
-        const data = await response.json();
-        publicVapidKey = data.publicKey;
-        console.log('Publiczny klucz VAPID pobrany:', publicVapidKey);
-    } catch (error) {
-        console.error('Błąd pobierania publicznego klucza VAPID:', error);
-    }
-}
-
-async function subscribeUserToPush() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.warn('Powiadomienia push nie są obsługiwane w tej przeglądarce/urządzeniu.');
-        return;
-    }
-    if (!publicVapidKey) {
-        console.warn('Brak publicznego klucza VAPID. Nie można zasubskrybować.');
-        return;
-    }
-    if (!currentUserId) {
-        console.warn('Brak ID użytkownika. Nie można zasubskrybować.');
-        return;
-    }
-
-    try {
-        const registration = await navigator.serviceWorker.ready; // Czekaj na rejestrację SW
-        const existingSubscription = await registration.pushManager.getSubscription();
-
-        if (existingSubscription) {
-            console.log('Istniejąca subskrypcja push:', existingSubscription);
-            // Możesz wysłać istniejącą subskrypcję ponownie do backendu, aby upewnić się, że jest aktualna
-            await sendSubscriptionToBackend(existingSubscription);
-            return;
-        }
-
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-            console.warn('Odmowa zgody na powiadomienia push.');
-            return;
-        }
-
-        const subscribeOptions = {
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-        };
-
-        const pushSubscription = await registration.pushManager.subscribe(subscribeOptions);
-        console.log('Nowa subskrypcja push:', pushSubscription);
-
-        await sendSubscriptionToBackend(pushSubscription);
-        console.log('Subskrypcja push wysłana do backendu.');
-
-    } catch (error) {
-        console.error('Błąd subskrypcji push:', error);
-    }
-}
-
-async function sendSubscriptionToBackend(subscription) {
-    if (!currentUserId) {
-        console.warn('Brak ID użytkownika, nie można wysłać subskrypcji do backendu.');
-        return;
-    }
-    try {
-        const response = await fetch(`${BASE_URL}/subscribe-push`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscription: subscription, userId: currentUserId })
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Błąd wysyłania subskrypcji do backendu:', errorData.message);
-        } else {
-            console.log('Subskrypcja push pomyślnie zapisana w backendzie.');
-        }
-    } catch (error) {
-        console.error('Błąd sieciowy podczas wysyłania subskrypcji do backendu:', error);
-    }
-}
-
-
 // ----- Inicjalizacja Aplikacji -----
 document.addEventListener('DOMContentLoaded', async () => {
-    container.classList.remove('hidden'); // Animate container on load
+    container.classList.remove('hidden');
 
-    // Pobierz publiczny klucz VAPID zaraz po załadowaniu DOM
-    await getVapidPublicKey();
+    await getVapidPublicKey(); // Pobierz publiczny klucz VAPID przed rejestracją SW
 
     // Rejestracja Service Workera
     if ('serviceWorker' in navigator) {
@@ -383,10 +422,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // ZMIANA: Sprawdź token JWT zamiast tylko userId
+    const storedToken = getToken();
     const storedUserId = localStorage.getItem('userId');
     const storedUsername = localStorage.getItem('username');
 
-    if (storedUserId && storedUsername) {
+    // Uproszczona walidacja: Sprawdź, czy token istnieje i czy są podstawowe dane
+    if (storedToken && storedUserId && storedUsername) {
+        // Można dodać tutaj bardziej zaawansowaną walidację tokenu, np. wysyłając go do backendu
+        // lub dekodując (bez weryfikacji podpisu) po stronie klienta, aby sprawdzić datę ważności.
+        // Na razie zakładamy, że jeśli token istnieje, jest w miarę aktualny.
         showAppSection(storedUserId, storedUsername);
     } else {
         showAuthSection();
