@@ -367,3 +367,52 @@ p {
     scrollbar-color: #556c7f #2c3e50;
   }
 }
+
+/* Input & Textarea Styling (zmiana tylko w textarea) */
+textarea {
+    resize: vertical;
+    min-height: 80px; /* Zmniejszamy min-height, aby było bardziej dynamiczne */
+    max-height: 200px; /* NOWOŚĆ: Dodajemy max-height dla rozwijającego się pola */
+    overflow-y: auto; /* NOWOŚĆ: Dodajemy scrollbar, gdy tekst przekroczy max-height */
+}
+
+/* Scrollbar dla textarea (dla nowoczesnego wyglądu) */
+textarea::-webkit-scrollbar {
+    width: 8px;
+}
+textarea::-webkit-scrollbar-track {
+    background: #3e5162;
+    border-radius: 10px;
+}
+textarea::-webkit-scrollbar-thumb {
+    background: #556c7f;
+    border-radius: 10px;
+}
+textarea::-webkit-scrollbar-thumb:hover {
+    background: #6a8298;
+}
+
+/* NOWOŚĆ: Styl dla rozwijającej się listy odbiorców */
+#receiver-select {
+    appearance: none; /* Ukryj domyślną strzałkę select */
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a4b0be"><path d="M7 10l5 5 5-5z"/></svg>'); /* Własna strzałka */
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 24px;
+    padding-right: 40px; /* Zwiększ padding, aby strzałka była widoczna */
+    cursor: pointer;
+}
+
+/* Opcjonalnie: Stylowanie listy rozwijanej */
+#receiver-select option {
+    background-color: #3e5162; /* Tło opcji */
+    color: #e0e6eb; /* Kolor tekstu opcji */
+    padding: 10px; /* Padding dla lepszego wyglądu */
+}
+
+/* Dodatkowe media queries dla mobile, jeśli min-height textarea jest zbyt mały */
+@media (max-width: 600px) {
+    textarea {
+        min-height: 60px; /* Może być mniejsza na małych ekranach */
+    }
+}

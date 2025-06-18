@@ -24,9 +24,12 @@ const sendMessageBtn = document.getElementById('send-message-btn');
 const sendMessageStatus = document.getElementById('send-message-status');
 const logoutBtn = document.getElementById('logout-btn');
 
+
 let currentUserId = null;
 let currentUsername = null;
 let publicVapidKey = null;
+// ... (istniejące zmienne) ...
+let searchUsersTimeout = null; // NOWOŚĆ: do opóźniania wyszukiwania użytkowników
 
 // NOWOŚĆ: Funkcja do pobierania tokenu JWT
 function getToken() {
@@ -57,6 +60,53 @@ function showPanel(panelId) {
         receivedTab.classList.add('active');
     } else if (panelId === 'send-panel') {
         sendTab.classList.add('active');
+    }
+}
+
+// NOWOŚĆ: Funkcja do tworzenia elementu input dla wyszukiwania użytkowników
+function createSearchInput() {
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.id = 'receiver-search-input';
+    searchInput.placeholder = 'Szukaj odbiorcy...';
+    return searchInput;
+}
+
+// NOWOŚĆ: Funkcja do filtrowania listy odbiorców
+async function filterReceivers(searchTerm = '') {
+    receiverSelect.innerHTML = '<option value="">Wybierz odbiorcę</option>'; // Wyczyść i dodaj domyślną opcję
+    try {
+        const response = await fetch(`${BASE_URL}/users`, {
+            headers: getAuthHeaders()
+        });
+        if (response.status === 401 || response.status === 403) {
+            displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
+            showAuthSection();
+            return;
+        }
+
+        const users = await response.json();
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+        users.forEach(user => {
+            if (user.username !== currentUsername && user.username.toLowerCase().includes(lowerCaseSearchTerm)) {
+                const option = document.createElement('option');
+                option.value = user.username;
+                option.textContent = user.username;
+                receiverSelect.appendChild(option);
+            }
+        });
+
+        if (receiverSelect.options.length === 1 && searchTerm !== '') { // Jeśli tylko "Wybierz odbiorcę" i coś szukano
+             const noResultsOption = document.createElement('option');
+             noResultsOption.value = '';
+             noResultsOption.textContent = 'Brak pasujących użytkowników.';
+             noResultsOption.disabled = true; // Zrób ją nieaktywną
+             receiverSelect.appendChild(noResultsOption);
+        }
+
+    } catch (error) {
+        console.error('Error fetching users:', error);
     }
 }
 
@@ -350,32 +400,23 @@ async function fetchMessages() {
 }
 
 async function fetchAllUsers() {
-    receiverSelect.innerHTML = '<option value="">Wybierz odbiorcę</option>';
-    try {
-        // ZMIANA: Używamy nagłówka autoryzacji
-        const response = await fetch(`${BASE_URL}/users`, {
-            headers: getAuthHeaders()
-        });
-        // ZMIANA: Obsługa błędu 401/403
-        if (response.status === 401 || response.status === 403) {
-            displayStatusMessage(authMessage, 'Sesja wygasła. Zaloguj się ponownie.', true);
-            showAuthSection();
-            return;
-        }
+    // Sprawdź, czy pole wyszukiwania już istnieje. Jeśli nie, stwórz je i dodaj przed selectem.
+    let receiverSearchInput = document.getElementById('receiver-search-input');
+    if (!receiverSearchInput) {
+        receiverSearchInput = createSearchInput();
+        receiverSelect.parentNode.insertBefore(receiverSearchInput, receiverSelect);
 
-        const users = await response.json();
-
-        users.forEach(user => {
-            if (user.username !== currentUsername) {
-                const option = document.createElement('option');
-                option.value = user.username;
-                option.textContent = user.username;
-                receiverSelect.appendChild(option);
-            }
+        // Dodaj event listener do wyszukiwania
+        receiverSearchInput.addEventListener('input', (event) => {
+            clearTimeout(searchUsersTimeout);
+            searchUsersTimeout = setTimeout(() => {
+                filterReceivers(event.target.value);
+            }, 300); // Opóźnienie 300ms przed rozpoczęciem wyszukiwania
         });
-    } catch (error) {
-        console.error('Error fetching users:', error);
     }
+
+    // Wywołaj filtrowanie bez terminu, aby załadować wszystkich użytkowników na start
+    await filterReceivers();
 }
 
 sendMessageBtn.addEventListener('click', async () => {
@@ -471,4 +512,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         showAuthSection();
     }
+// NOWOŚĆ: Wysyłanie wiadomości po naciśnięciu Enter w polu textarea
+messageContentInput.addEventListener('keypress', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) { // Shift+Enter dla nowej linii, sam Enter do wysyłania
+        event.preventDefault(); // Zapobiegaj domyślnej akcji (np. nowa linia)
+        sendMessageBtn.click(); // Symuluj kliknięcie przycisku wysyłania
+    }
+});
+
+// NOWOŚĆ: Automatyczne rozszerzanie textarea
+messageContentInput.addEventListener('input', function() {
+    this.style.height = 'auto'; // Resetuj wysokość
+    this.style.height = (this.scrollHeight) + 'px'; // Ustaw wysokość na podstawie scrollHeight
+});
 });
